@@ -8,7 +8,6 @@ import {
   CircleDollarSign,
   Clock3,
   Gift,
-  ImagePlus,
   Heart,
   LogOut,
   Menu,
@@ -24,29 +23,25 @@ import {
 import {
   getGetCurrentMemberQueryKey,
   getGetSavingsSummaryQueryKey,
-  getGetWeddingPhotoQueryKey,
   getListSavingsEntriesQueryKey,
   SavingsEntryCategory,
   type Member,
   type SavingsEntry,
   type SavingsEntryInput,
   type SavingsSummary,
-  type WeddingPhoto,
   useCreateSavingsEntry,
   useGetCurrentMember,
   useGetSavingsSummary,
-  useGetWeddingPhoto,
   useListSavingsEntries,
   useLogin,
   useLogout,
-  useRequestUploadUrl,
-  useUpdateWeddingPhoto,
 } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Router as WouterRouter, Switch } from 'wouter';
+import ourStoryImage from './assets/our-story.png';
 import './index.css';
 
 const queryClient = new QueryClient();
@@ -252,15 +247,8 @@ function Dashboard({ member }: { member: Member }) {
   const entriesQuery = useListSavingsEntries({
     query: { enabled: true, queryKey: getListSavingsEntriesQueryKey() },
   });
-  const photoQuery = useGetWeddingPhoto({
-    query: { enabled: true, queryKey: getGetWeddingPhotoQueryKey() },
-  });
   const logout = useLogout();
   const createEntry = useCreateSavingsEntry();
-  const requestUploadUrl = useRequestUploadUrl();
-  const updateWeddingPhoto = useUpdateWeddingPhoto();
-  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
-  const [photoError, setPhotoError] = useState('');
 
   const handleLogout = () => {
     logout.mutate(undefined, {
@@ -285,41 +273,6 @@ function Dashboard({ member }: { member: Member }) {
         },
       },
     );
-  };
-
-  const uploadPhoto = async (file: File) => {
-    setPhotoError('');
-    if (!file.type.startsWith('image/')) {
-      setPhotoError('Please choose a photo file.');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setPhotoError('Please choose a photo smaller than 10 MB.');
-      return;
-    }
-
-    setIsUploadingPhoto(true);
-    try {
-      const upload = await requestUploadUrl.mutateAsync({
-        data: {
-          name: file.name,
-          size: file.size,
-          contentType: file.type,
-        },
-      });
-      const response = await fetch(upload.uploadURL, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
-      });
-      if (!response.ok) throw new Error('Photo upload failed');
-      await updateWeddingPhoto.mutateAsync({ data: { objectPath: upload.objectPath } });
-      await queryClient.invalidateQueries({ queryKey: getGetWeddingPhotoQueryKey() });
-    } catch {
-      setPhotoError('We could not save that photo just now. Please try again.');
-    } finally {
-      setIsUploadingPhoto(false);
-    }
   };
 
   const summary = summaryQuery.data;
@@ -384,7 +337,7 @@ function Dashboard({ member }: { member: Member }) {
         <div className="mx-auto max-w-[1280px] px-5 pb-12 sm:px-9">
           <section className="animate-rise-in mb-7 grid gap-5 xl:grid-cols-[1.4fr_.85fr]">
             <FundHero summary={summary} isLoading={summaryQuery.isLoading} isError={summaryQuery.isError} onRetry={() => summaryQuery.refetch()} member={member} />
-            <PhotoMemory photo={photoQuery.data} isLoading={photoQuery.isLoading} isUploading={isUploadingPhoto} error={photoError} onUpload={uploadPhoto} />
+            <PhotoMemory />
           </section>
           <section className="mb-10 grid gap-4 sm:grid-cols-3" data-testid="summary-cards">
             <SummaryCard label="We have saved" value={money(summary?.totalSaved)} detail={summary ? `${summary.percentage.toFixed(1)}% of our target` : 'Loading your total'} icon={<WalletCards size={18} />} tone="yellow" />
@@ -438,7 +391,7 @@ function FundHero({ summary, isLoading, isError, onRetry, member }: { summary?: 
   );
 }
 
-function PhotoMemory({ photo, isLoading, isUploading, error, onUpload }: { photo?: WeddingPhoto; isLoading: boolean; isUploading: boolean; error: string; onUpload: (file: File) => void }) {
+function PhotoMemory() {
   return (
     <div className="photo-memory-card relative overflow-hidden rounded-[2rem] bg-[#f5e5dc] p-7 text-[#382d3c] shadow-sm sm:p-8" data-testid="card-photo-memory">
       <div className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-[#cf8394]/20 blur-2xl" />
@@ -449,34 +402,13 @@ function PhotoMemory({ photo, isLoading, isUploading, error, onUpload }: { photo
         </div>
         <h2 className="serif-display mt-6 text-4xl leading-none">Our story,<br /><span className="italic text-[#ad6878]">in one frame.</span></h2>
         <div className="mt-7 flex flex-1 items-center justify-center">
-          {isLoading ? (
-            <div className="h-44 w-full animate-pulse rounded-[30%_70%_65%_35%/40%_35%_65%_60%] bg-[#ead1c9]" data-testid="state-photo-loading" />
-          ) : photo?.url ? (
-            <label className="group relative block w-full cursor-pointer" data-testid="photo-preview">
-              <div className="brush-photo-scene mx-auto">
-                <img src={photo.url} alt="Sneha and Honest" className="brush-photo-image" />
-                <span className="brush-stroke brush-stroke-one" />
-                <span className="brush-stroke brush-stroke-two" />
-              </div>
-              <span className="photo-change-hint"><ImagePlus size={14} /> Change our photo</span>
-              <input className="sr-only" type="file" accept="image/*" onChange={(event) => event.target.files?.[0] && onUpload(event.target.files[0])} disabled={isUploading} />
-            </label>
-          ) : (
-            <label className="brush-photo-empty group" data-testid="photo-upload-empty">
-              <span className="brush-empty-stroke brush-empty-stroke-one" />
-              <span className="brush-empty-stroke brush-empty-stroke-two" />
-              <span className="relative z-10 flex flex-col items-center justify-center px-8 text-center">
-                <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#efd0d1] text-[#8e4c5c] transition group-hover:scale-105"><ImagePlus size={21} /></span>
-                <span className="serif-display text-2xl">Add a photo of us</span>
-                <span className="mt-1 text-xs text-[#8d6570]">Let this space hold a little joy.</span>
-              </span>
-              <input className="sr-only" type="file" accept="image/*" onChange={(event) => event.target.files?.[0] && onUpload(event.target.files[0])} disabled={isUploading} />
-            </label>
-          )}
+          <div className="brush-photo-scene mx-auto" data-testid="photo-preview">
+            <img src={ourStoryImage} alt="Sneha and Honest on their wedding day" className="brush-photo-image" />
+            <span className="brush-stroke brush-stroke-one" />
+            <span className="brush-stroke brush-stroke-two" />
+          </div>
         </div>
-        {isUploading && <p className="mono-label mt-4 text-center text-[10px] text-[#8e4c5c]" role="status" data-testid="status-photo-uploading">Saving our photo...</p>}
-        {error && <p className="mt-4 rounded-xl bg-[#f8e9eb] px-4 py-3 text-sm text-[#8e4c5c]" role="alert" data-testid="status-photo-error">{error}</p>}
-        <p className="mt-6 text-sm leading-6 text-[#6f5d66]">Every little step is sweeter when it is ours. This is the place for the photo that makes you both smile.</p>
+        <p className="mt-6 text-sm leading-6 text-[#6f5d66]">A little reminder of the promise we are building toward, kept here for every visit.</p>
       </div>
     </div>
   );
