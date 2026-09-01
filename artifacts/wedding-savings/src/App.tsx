@@ -316,7 +316,7 @@ function Dashboard({ member, onLogout }: { member: Member; onLogout: () => void 
               <span className="mono-label text-[9px] text-[#aaa8b2]">The big day</span>
               <CalendarDays size={15} className="text-sidebar-primary" />
             </div>
-            <p className="serif-display text-3xl">14.07.26</p>
+            <p className="serif-display text-3xl">14.07.27</p>
              <p className="mt-1 text-xs text-[#aaa8b2]">{summary ? (summary.daysUntilWedding > 0 ? `${summary.daysUntilWedding} days to go` : 'The day has arrived') : '—'}</p>
           </div>
           <div className="flex items-center gap-3 border-t border-sidebar-border pt-5">
