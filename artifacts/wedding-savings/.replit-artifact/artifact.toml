@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Our Wedding Fund"
+description = "A private shared savings tracker for Sneha and Honest to record wedding contributions, follow progress toward their INR 10,00,000 goal, and stay motivated together."
+version = "1.0.0"
+id = "artifacts/wedding-savings"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18251
+
+[services.development]
+run = "pnpm --filter @workspace/wedding-savings run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/wedding-savings", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/wedding-savings/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18251"
+BASE_PATH = "/"

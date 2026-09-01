@@ -1,0 +1,1 @@
+- [OpenAPI integer compatibility](openapi-zod-compatibility.md) — use number schemas for generated clients until the workspace upgrades its Zod/Orval compatibility.

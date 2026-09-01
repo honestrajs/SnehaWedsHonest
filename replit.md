@@ -1,6 +1,6 @@
-# [Project name]
+# Our Wedding Fund
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A private shared savings tracker for Sneha and Honest to build their INR wedding fund together.
 
 ## Run & Operate
 
@@ -22,23 +22,34 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+ - `artifacts/wedding-savings/src/App.tsx` — login, dashboard, contribution form, and responsive UI
+ - `artifacts/wedding-savings/src/index.css` — wedding fund theme, typography, texture, and motion
+ - `artifacts/api-server/src/routes/wedding.ts` — session login and savings API
+ - `lib/db/src/schema/wedding.ts` — shared contribution table
+ - `lib/api-spec/openapi.yaml` — source of truth for the API contract
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Shared contributions are persisted in PostgreSQL so both couple logins see the same ledger.
+- The two requested couple credentials are handled by a small session-based private login.
+- Money is stored as integer paise/cents in the database to avoid floating-point total errors.
+- The target and wedding date are constants for this wedding plan; dashboard calculations are derived server-side.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Bride and groom can sign in separately using the requested names and password.
+- Each person can save an amount, date and time, category, and a personal summary.
+- The dashboard shows total saved, percentage progress toward INR 10,00,000, remaining amount, monthly pace, contribution split, countdown, and recent entries.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- The user asked for a romantic Christian wedding theme for Sneha Christy C and Honest Raj S.
+- Wedding date is July 14, 2026; target budget is INR 10,00,000.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Use `pnpm --filter @workspace/api-spec run codegen` after OpenAPI changes.
+- API and web services are managed by their existing artifact workflows; restart those workflows after code changes.
 
 ## Pointers
 
