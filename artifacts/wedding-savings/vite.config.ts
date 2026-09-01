@@ -5,27 +5,14 @@ import { defineConfig } from 'vite';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 
-const rawPort = process.env.PORT;
-
-if (!rawPort) {
-  throw new Error(
-    'PORT environment variable is required but was not provided.',
-  );
-}
-
+const rawPort = process.env.PORT ?? '5173';
 const port = Number(rawPort);
 
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = process.env.BASE_PATH;
-
-if (!basePath) {
-  throw new Error(
-    'BASE_PATH environment variable is required but was not provided.',
-  );
-}
+const basePath = process.env.BASE_PATH ?? '/';
 
 export default defineConfig({
   base: basePath,
@@ -71,6 +58,15 @@ export default defineConfig({
     allowedHosts: true,
     fs: {
       strict: true,
+    },
+    // Local dev only: the API server runs on its own port (see
+    // artifacts/api-server/.env). Proxying keeps requests same-origin so the
+    // httpOnly session cookie from login works without extra CORS/credentials wiring.
+    proxy: {
+      '/api': {
+        target: `http://localhost:${process.env.API_PORT ?? '5000'}`,
+        changeOrigin: true,
+      },
     },
   },
   preview: {

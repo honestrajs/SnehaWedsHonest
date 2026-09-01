@@ -1,41 +1,42 @@
-import { FormEvent, useState } from 'react';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   ArrowUpRight,
   CalendarDays,
   Check,
-  ChevronRight,
   CircleDollarSign,
   Clock3,
   Gift,
   Heart,
   LogOut,
   Menu,
+  Pencil,
   Plus,
   RefreshCw,
   Sparkles,
   Target,
+  Trash2,
   TrendingUp,
   UserRound,
   WalletCards,
   X,
 } from 'lucide-react';
 import {
-  getGetCurrentMemberQueryKey,
-  getGetSavingsSummaryQueryKey,
-  getListSavingsEntriesQueryKey,
-  SavingsEntryCategory,
+  getStoredMember,
+  login as loginRequest,
+  logout as logoutRequest,
+  SAVINGS_CATEGORIES,
+  summarize,
+  useCreateSavingsEntry,
+  useDeleteSavingsEntry,
+  useSavingsEntries,
+  useUpdateSavingsEntry,
   type Member,
+  type SavingsCategory,
   type SavingsEntry,
   type SavingsEntryInput,
   type SavingsSummary,
-  useCreateSavingsEntry,
-  useGetCurrentMember,
-  useGetSavingsSummary,
-  useListSavingsEntries,
-  useLogin,
-  useLogout,
-} from '@workspace/api-client-react';
+} from '@/lib/weddingFund';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -45,6 +46,7 @@ import ourStoryImage from './assets/our-story.png';
 import './index.css';
 
 const queryClient = new QueryClient();
+const WEDDING_DATE_MS = new Date('2027-07-14T00:00:00.000Z').getTime();
 const categoryLabels: Record<string, string> = {
   salary: 'Salary',
   gift: 'Gift',
@@ -96,33 +98,32 @@ function LoadingPanel({ label = 'Opening your shared fund...' }: { label?: strin
 }
 
 function AuthGate() {
-  const currentMember = useGetCurrentMember({
-    query: { queryKey: getGetCurrentMemberQueryKey(), retry: false },
-  });
+  const [member, setMember] = useState<Member | null>(() => getStoredMember());
 
-  if (currentMember.isLoading) return <LoadingPanel />;
-  if (currentMember.data) return <Dashboard member={currentMember.data} />;
-  return <LoginScreen />;
+  if (member) return <Dashboard member={member} onLogout={() => setMember(null)} />;
+  return <LoginScreen onLogin={setMember} />;
 }
 
-function LoginScreen({ error }: { error?: string }) {
-  const queryClient = useQueryClient();
-  const login = useLogin();
+function LoginScreen({ onLogin }: { onLogin: (member: Member) => void }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [isPending, setIsPending] = useState(false);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!username.trim() || !password) return;
-    login.mutate(
-      { data: { username: username.trim(), password } },
-      {
-        onSuccess: (member) => {
-          queryClient.setQueryData(getGetCurrentMemberQueryKey(), member);
-        },
-      },
-    );
+    setIsPending(true);
+    setError('');
+    try {
+      const member = loginRequest(username, password);
+      onLogin(member);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'That sign-in did not work.');
+    } finally {
+      setIsPending(false);
+    }
   };
 
   return (
@@ -210,19 +211,19 @@ function LoginScreen({ error }: { error?: string }) {
                   className="h-14 w-full rounded-xl border border-[#d1cdc2] bg-[#f8f5ed] px-4 text-[#272638] outline-none transition focus:border-[#e6b935] focus:ring-2 focus:ring-[#e6b935]/20 lg:border-[#575668] lg:bg-[#343347] lg:text-[#f4f0e5] lg:placeholder:text-[#777587]"
                 />
               </label>
-              {(error || login.isError) && (
+              {error && (
                 <div className="rounded-xl border border-[#d79aa6]/50 bg-[#f8e9eb] px-4 py-3 text-sm text-[#8e4c5c]" role="alert" data-testid="status-login-error">
-                  {login.isError ? 'That sign-in did not work. Check the details and try again.' : error}
+                  {error}
                 </div>
               )}
               <button
                 data-testid="button-submit-login"
                 type="submit"
-                disabled={login.isPending || !username.trim() || !password}
+                disabled={isPending || !username.trim() || !password}
                 className="group flex h-14 w-full items-center justify-between rounded-xl bg-[#e6b935] px-5 font-semibold text-[#272638] transition hover:bg-[#f3cf58] focus:outline-none focus:ring-2 focus:ring-[#f3b900] focus:ring-offset-2 focus:ring-offset-[#272638] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span>{login.isPending ? 'Opening your fund...' : 'Enter our fund'}</span>
-                {login.isPending ? <RefreshCw size={18} className="animate-spin" /> : <ArrowUpRight size={19} className="transition group-hover:translate-x-1 group-hover:-translate-y-1" />}
+                <span>{isPending ? 'Opening your fund...' : 'Enter our fund'}</span>
+                {isPending ? <RefreshCw size={18} className="animate-spin" /> : <ArrowUpRight size={19} className="transition group-hover:translate-x-1 group-hover:-translate-y-1" />}
               </button>
             </form>
             <div className="mt-10 flex items-center gap-3 text-xs text-[#8c8990] lg:text-[#777587]">
@@ -236,47 +237,59 @@ function LoginScreen({ error }: { error?: string }) {
   );
 }
 
-function Dashboard({ member }: { member: Member }) {
-  const queryClient = useQueryClient();
+function Dashboard({ member, onLogout }: { member: Member; onLogout: () => void }) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [flashMessage, setFlashMessage] = useState('');
-  const summaryQuery = useGetSavingsSummary({
-    query: { enabled: true, queryKey: getGetSavingsSummaryQueryKey() },
-  });
-  const entriesQuery = useListSavingsEntries({
-    query: { enabled: true, queryKey: getListSavingsEntriesQueryKey() },
-  });
-  const logout = useLogout();
+  const [editingEntry, setEditingEntry] = useState<SavingsEntry | null>(null);
+  const [deletingEntry, setDeletingEntry] = useState<SavingsEntry | null>(null);
+  const entriesQuery = useSavingsEntries();
   const createEntry = useCreateSavingsEntry();
+  const updateEntry = useUpdateSavingsEntry();
+  const deleteEntry = useDeleteSavingsEntry();
 
   const handleLogout = () => {
-    logout.mutate(undefined, {
+    logoutRequest();
+    onLogout();
+  };
+
+  const addEntry = (data: SavingsEntryInput) => {
+    createEntry.mutate(data, {
       onSuccess: () => {
-        queryClient.removeQueries({ queryKey: getGetCurrentMemberQueryKey() });
-        queryClient.removeQueries({ queryKey: getGetSavingsSummaryQueryKey() });
-        queryClient.removeQueries({ queryKey: getListSavingsEntriesQueryKey() });
+        setIsAddOpen(false);
+        setFlashMessage('A beautiful little win, saved.');
+        window.setTimeout(() => setFlashMessage(''), 4000);
       },
     });
   };
 
-  const addEntry = (data: SavingsEntryInput) => {
-    createEntry.mutate(
-      { data },
+  const saveEditedEntry = (data: SavingsEntryInput) => {
+    if (!editingEntry) return;
+    updateEntry.mutate(
+      { id: editingEntry.id, ...data },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetSavingsSummaryQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getListSavingsEntriesQueryKey() });
-          setIsAddOpen(false);
-          setFlashMessage('A beautiful little win, saved.');
+          setEditingEntry(null);
+          setFlashMessage('Updated — the story stays accurate.');
           window.setTimeout(() => setFlashMessage(''), 4000);
         },
       },
     );
   };
 
-  const summary = summaryQuery.data;
+  const confirmDelete = () => {
+    if (!deletingEntry) return;
+    deleteEntry.mutate(deletingEntry.id, {
+      onSuccess: () => {
+        setDeletingEntry(null);
+        setFlashMessage('That entry is gone.');
+        window.setTimeout(() => setFlashMessage(''), 4000);
+      },
+    });
+  };
+
   const entries = entriesQuery.data ?? [];
+  const summary = useMemo(() => summarize(entries), [entries]);
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
@@ -312,7 +325,7 @@ function Dashboard({ member }: { member: Member }) {
               <p className="truncate text-sm font-medium" data-testid="text-member-name">{member.name}</p>
               <p className="text-xs capitalize text-[#aaa8b2]">{member.role}</p>
             </div>
-            <button onClick={handleLogout} disabled={logout.isPending} className="text-[#aaa8b2] transition hover:text-sidebar-primary" data-testid="button-logout" aria-label="Sign out">
+            <button onClick={handleLogout} className="text-[#aaa8b2] transition hover:text-sidebar-primary" data-testid="button-logout" aria-label="Sign out">
               <LogOut size={16} />
             </button>
           </div>
@@ -336,7 +349,7 @@ function Dashboard({ member }: { member: Member }) {
         </header>
         <div className="mx-auto max-w-[1280px] px-5 pb-12 sm:px-9">
           <section className="animate-rise-in mb-7 grid gap-5 xl:grid-cols-[1.4fr_.85fr]">
-            <FundHero summary={summary} isLoading={summaryQuery.isLoading} isError={summaryQuery.isError} onRetry={() => summaryQuery.refetch()} member={member} />
+            <FundHero summary={summary} isLoading={entriesQuery.isLoading} isError={entriesQuery.isError} onRetry={() => entriesQuery.refetch()} member={member} />
             <PhotoMemory />
           </section>
           <section className="mb-10 grid gap-4 sm:grid-cols-3" data-testid="summary-cards">
@@ -345,12 +358,30 @@ function Dashboard({ member }: { member: Member }) {
             <SummaryCard label="Our target" value={money(summary?.target)} detail="The celebration we are building" icon={<Target size={18} />} tone="teal" />
           </section>
           <section className="grid gap-6 xl:grid-cols-[1.35fr_.65fr]">
-            <EntriesCard entries={entries} isLoading={entriesQuery.isLoading} isError={entriesQuery.isError} onRetry={() => entriesQuery.refetch()} />
+            <EntriesCard entries={entries} isLoading={entriesQuery.isLoading} isError={entriesQuery.isError} onRetry={() => entriesQuery.refetch()} onEdit={setEditingEntry} onDelete={setDeletingEntry} />
             <SideNote summary={summary} />
           </section>
         </div>
       </main>
       {isAddOpen && <AddEntryDialog isPending={createEntry.isPending} error={createEntry.isError} onClose={() => setIsAddOpen(false)} onSubmit={addEntry} />}
+      {editingEntry && (
+        <AddEntryDialog
+          entry={editingEntry}
+          isPending={updateEntry.isPending}
+          error={updateEntry.isError}
+          onClose={() => setEditingEntry(null)}
+          onSubmit={saveEditedEntry}
+        />
+      )}
+      {deletingEntry && (
+        <ConfirmDeleteDialog
+          entry={deletingEntry}
+          isPending={deleteEntry.isPending}
+          error={deleteEntry.isError}
+          onCancel={() => setDeletingEntry(null)}
+          onConfirm={confirmDelete}
+        />
+      )}
       {flashMessage && <div className="animate-soft-pop fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full bg-[#272638] px-5 py-3 text-sm text-[#f4f0e5] shadow-xl" role="status" data-testid="status-save-success"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#e6b935] text-[#272638]"><Check size={14} strokeWidth={3} /></span>{flashMessage}</div>}
     </div>
   );
@@ -408,7 +439,62 @@ function PhotoMemory() {
             <span className="brush-stroke brush-stroke-two" />
           </div>
         </div>
+        <WeddingCountdown />
         <p className="mt-6 text-sm leading-6 text-[#6f5d66]">A little reminder of the promise we are building toward, kept here for every visit.</p>
+      </div>
+    </div>
+  );
+}
+
+function getTimeRemaining(targetMs: number) {
+  const total = Math.max(targetMs - Date.now(), 0);
+  return {
+    total,
+    days: Math.floor(total / 86_400_000),
+    hours: Math.floor((total / 3_600_000) % 24),
+    minutes: Math.floor((total / 60_000) % 60),
+    seconds: Math.floor((total / 1000) % 60),
+  };
+}
+
+function WeddingCountdown() {
+  const [timeLeft, setTimeLeft] = useState(() => getTimeRemaining(WEDDING_DATE_MS));
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setTimeLeft(getTimeRemaining(WEDDING_DATE_MS)), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const units = useMemo(
+    () => [
+      { label: 'Days', value: timeLeft.days },
+      { label: 'Hours', value: timeLeft.hours },
+      { label: 'Minutes', value: timeLeft.minutes },
+      { label: 'Seconds', value: timeLeft.seconds },
+    ],
+    [timeLeft],
+  );
+
+  if (timeLeft.total <= 0) {
+    return (
+      <div className="mt-6 rounded-2xl bg-[#272638] px-5 py-4 text-center" data-testid="widget-countdown">
+        <p className="serif-display text-2xl italic text-[#f3cf58]">Today, we say &ldquo;I do.&rdquo;</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6" data-testid="widget-countdown">
+      <p className="text-center text-xs italic text-[#8d6570]">Every second is one heartbeat closer to forever</p>
+      <div className="mt-3 grid grid-cols-4 gap-2 sm:gap-3">
+        {units.map((unit) => (
+          <div key={unit.label} className="rounded-xl bg-[#272638] px-1.5 py-3 text-center text-[#f4f0e5] shadow-sm sm:px-2">
+            <p className="serif-display text-2xl tabular-nums sm:text-3xl" data-testid={`text-countdown-${unit.label.toLowerCase()}`}>
+              {String(unit.value).padStart(2, '0')}
+            </p>
+            <p className="mono-label mt-1 text-[8px] text-[#e6b935]">{unit.label}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -419,11 +505,25 @@ function SummaryCard({ label, value, detail, icon, tone }: { label: string; valu
   return <div className="rounded-3xl border border-border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" data-testid={`card-summary-${label.toLowerCase().replaceAll(' ', '-')}`}><div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">{label}</span><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${colors[tone]}`}>{icon}</span></div><p className="mt-5 text-2xl font-semibold tracking-tight">{value}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div>;
 }
 
-function EntriesCard({ entries, isLoading, isError, onRetry }: { entries: SavingsEntry[]; isLoading: boolean; isError: boolean; onRetry: () => void }) {
+function EntriesCard({
+  entries,
+  isLoading,
+  isError,
+  onRetry,
+  onEdit,
+  onDelete,
+}: {
+  entries: SavingsEntry[];
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+  onEdit: (entry: SavingsEntry) => void;
+  onDelete: (entry: SavingsEntry) => void;
+}) {
   return (
     <div className="rounded-[2rem] border border-border bg-card p-6 shadow-sm sm:p-8" data-testid="card-recent-entries">
       <div className="mb-7 flex items-end justify-between"><div><p className="mono-label text-[10px] text-muted-foreground">The paper trail</p><h2 className="serif-display mt-2 text-4xl">Recent additions</h2></div><span className="rounded-full bg-muted px-3 py-1.5 text-xs text-muted-foreground">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</span></div>
-      {isLoading ? <div className="space-y-3">{[1, 2, 3].map((item) => <div className="h-16 animate-pulse rounded-2xl bg-muted" key={item} />)}</div> : isError ? <div className="rounded-2xl border border-dashed border-border p-8 text-center"><p className="text-sm text-muted-foreground">The additions are taking a moment to arrive.</p><button onClick={onRetry} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#8e4c5c]" data-testid="button-retry-entries"><RefreshCw size={15} /> Try again</button></div> : entries.length === 0 ? <EmptyEntries /> : <div className="space-y-2">{entries.map((entry, index) => <EntryRow entry={entry} index={index} key={entry.id} />)}</div>}
+      {isLoading ? <div className="space-y-3">{[1, 2, 3].map((item) => <div className="h-16 animate-pulse rounded-2xl bg-muted" key={item} />)}</div> : isError ? <div className="rounded-2xl border border-dashed border-border p-8 text-center"><p className="text-sm text-muted-foreground">The additions are taking a moment to arrive.</p><button onClick={onRetry} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#8e4c5c]" data-testid="button-retry-entries"><RefreshCw size={15} /> Try again</button></div> : entries.length === 0 ? <EmptyEntries /> : <div className="space-y-2">{entries.map((entry, index) => <EntryRow entry={entry} index={index} onEdit={onEdit} onDelete={onDelete} key={entry.id} />)}</div>}
     </div>
   );
 }
@@ -432,9 +532,36 @@ function EmptyEntries() {
   return <div className="rounded-2xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center" data-testid="state-empty-entries"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#f8efc9] text-[#75601c]"><Sparkles size={22} /></div><h3 className="serif-display mt-5 text-2xl">The first page is blank.</h3><p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-muted-foreground">Add your first little win and start the story of this fund.</p></div>;
 }
 
-function EntryRow({ entry, index }: { entry: SavingsEntry; index: number }) {
+function EntryRow({
+  entry,
+  index,
+  onEdit,
+  onDelete,
+}: {
+  entry: SavingsEntry;
+  index: number;
+  onEdit: (entry: SavingsEntry) => void;
+  onDelete: (entry: SavingsEntry) => void;
+}) {
   const Icon = categoryIcons[entry.category] ?? CircleDollarSign;
-  return <div className="animate-rise-in group flex items-center gap-3 rounded-2xl px-2 py-3 transition hover:bg-muted/60" style={{ animationDelay: `${index * 70}ms` }} data-testid={`row-savings-entry-${entry.id}`}><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-[#8e4c5c]"><Icon size={18} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold">{entry.summary}</p><span className="hidden rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground sm:inline">{categoryLabels[entry.category]}</span></div><p className="mt-1 text-xs text-muted-foreground">{shortDate(entry.occurredAt)} · shared by both of us</p></div><p className="font-semibold text-[#34695f]" data-testid={`text-entry-amount-${entry.id}`}>+{money(entry.amount)}</p><ChevronRight size={15} className="text-border transition group-hover:translate-x-0.5 group-hover:text-foreground" /></div>;
+  return (
+    <div className="animate-rise-in flex items-center gap-3 rounded-2xl px-2 py-3 transition hover:bg-muted/60" style={{ animationDelay: `${index * 70}ms` }} data-testid={`row-savings-entry-${entry.id}`}>
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-[#8e4c5c]"><Icon size={18} /></div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2"><p className="truncate text-sm font-semibold">{entry.summary}</p><span className="hidden rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground sm:inline">{categoryLabels[entry.category]}</span></div>
+        <p className="mt-1 text-xs text-muted-foreground">{shortDate(entry.occurredAt)} · shared by both of us</p>
+      </div>
+      <p className="font-semibold text-[#34695f]" data-testid={`text-entry-amount-${entry.id}`}>+{money(entry.amount)}</p>
+      <div className="flex shrink-0 items-center gap-1">
+        <button onClick={() => onEdit(entry)} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-[#f8efc9] hover:text-[#75601c]" data-testid={`button-edit-entry-${entry.id}`} aria-label="Edit this entry">
+          <Pencil size={14} />
+        </button>
+        <button onClick={() => onDelete(entry)} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-[#f8e9eb] hover:text-[#8e4c5c]" data-testid={`button-delete-entry-${entry.id}`} aria-label="Delete this entry">
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function SideNote({ summary }: { summary?: SavingsSummary }) {
@@ -467,18 +594,69 @@ function SideNote({ summary }: { summary?: SavingsSummary }) {
   );
 }
 
-function AddEntryDialog({ isPending, error, onClose, onSubmit }: { isPending: boolean; error: boolean; onClose: () => void; onSubmit: (data: SavingsEntryInput) => void }) {
-  const [amount, setAmount] = useState('');
-  const [occurredAt, setOccurredAt] = useState(toDateTimeInputValue(new Date()));
-  const [summary, setSummary] = useState('');
-  const [category, setCategory] = useState<SavingsEntryInput['category']>(SavingsEntryCategory.salary);
+function AddEntryDialog({
+  entry,
+  isPending,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  entry?: SavingsEntry;
+  isPending: boolean;
+  error: boolean;
+  onClose: () => void;
+  onSubmit: (data: SavingsEntryInput) => void;
+}) {
+  const isEditing = Boolean(entry);
+  const [amount, setAmount] = useState(entry ? String(entry.amount) : '');
+  const [occurredAt, setOccurredAt] = useState(entry ? toDateTimeInputValue(new Date(entry.occurredAt)) : toDateTimeInputValue(new Date()));
+  const [summary, setSummary] = useState(entry?.summary ?? '');
+  const [category, setCategory] = useState<SavingsCategory>((entry?.category as SavingsCategory) ?? SAVINGS_CATEGORIES[0]);
   const canSubmit = Number(amount) > 0 && summary.trim().length > 0 && occurredAt;
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) return;
     onSubmit({ amount: Number(amount), occurredAt, summary: summary.trim(), category });
   };
-   return <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#272638]/40 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="add-entry-title" data-testid="dialog-add-entry"><div className="animate-soft-pop w-full max-w-lg rounded-t-[2rem] bg-[#f8f5ed] p-6 shadow-2xl sm:rounded-[2rem] sm:p-8"><div className="mb-7 flex items-start justify-between"><div><p className="mono-label text-[10px] text-[#8c8990]">A new little win</p><h2 id="add-entry-title" className="serif-display mt-2 text-4xl text-[#272638]">Add to our fund</h2></div><button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eee9dc] text-[#686675] transition hover:bg-[#e6b935]" data-testid="button-close-add-entry" aria-label="Close add entry"><X size={18} /></button></div><form onSubmit={handleSubmit} className="space-y-4" data-testid="form-add-entry"><label className="block"><span className="mono-label mb-2 block text-[10px] text-[#8c8990]">Amount</span><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-[#8c8990]">₹</span><input data-testid="input-entry-amount" type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" className="h-14 w-full rounded-xl border border-[#d1cdc2] bg-white px-4 pl-9 text-lg text-[#272638] outline-none focus:border-[#e6b935] focus:ring-2 focus:ring-[#e6b935]/20" /></div></label><div className="grid gap-4 sm:grid-cols-2"><label className="block"><span className="mono-label mb-2 block text-[10px] text-[#8c8990]">Date &amp; time</span><input data-testid="input-entry-date" type="datetime-local" value={occurredAt} onChange={(event) => setOccurredAt(event.target.value)} className="h-12 w-full rounded-xl border border-[#d1cdc2] bg-white px-4 text-sm text-[#272638] outline-none focus:border-[#e6b935]" /></label><label className="block"><span className="mono-label mb-2 block text-[10px] text-[#8c8990]">From</span><select data-testid="select-entry-category" value={category} onChange={(event) => setCategory(event.target.value as SavingsEntryInput['category'])} className="h-12 w-full rounded-xl border border-[#d1cdc2] bg-white px-4 text-sm text-[#272638] outline-none focus:border-[#e6b935]">{Object.entries(categoryLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div><label className="block"><span className="mono-label mb-2 block text-[10px] text-[#8c8990]">A note for us</span><input data-testid="input-entry-summary" value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={240} placeholder="e.g. May salary set aside" className="h-14 w-full rounded-xl border border-[#d1cdc2] bg-white px-4 text-sm text-[#272638] outline-none focus:border-[#e6b935] focus:ring-2 focus:ring-[#e6b935]/20" /></label>{error && <p className="rounded-xl bg-[#f8e9eb] px-4 py-3 text-sm text-[#8e4c5c]" role="alert" data-testid="status-add-entry-error">Could not save this addition. Please try again.</p>}<button type="submit" disabled={!canSubmit || isPending} className="mt-3 flex h-14 w-full items-center justify-between rounded-xl bg-[#272638] px-5 font-semibold text-[#f4f0e5] transition hover:bg-[#343347] focus:outline-none focus:ring-2 focus:ring-[#e6b935] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-submit-entry"><span>{isPending ? 'Saving this moment...' : 'Save this little win'}</span>{isPending ? <RefreshCw size={17} className="animate-spin" /> : <Heart size={17} />}</button></form></div></div>;
+   return <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#272638]/40 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="add-entry-title" data-testid="dialog-add-entry"><div className="animate-soft-pop w-full max-w-lg rounded-t-[2rem] bg-[#f8f5ed] p-6 shadow-2xl sm:rounded-[2rem] sm:p-8"><div className="mb-7 flex items-start justify-between"><div><p className="mono-label text-[10px] text-[#8c8990]">{isEditing ? 'Getting the details right' : 'A new little win'}</p><h2 id="add-entry-title" className="serif-display mt-2 text-4xl text-[#272638]">{isEditing ? 'Edit this entry' : 'Add to our fund'}</h2></div><button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eee9dc] text-[#686675] transition hover:bg-[#e6b935]" data-testid="button-close-add-entry" aria-label="Close dialog"><X size={18} /></button></div><form onSubmit={handleSubmit} className="space-y-4" data-testid="form-add-entry"><label className="block"><span className="mono-label mb-2 block text-[10px] text-[#8c8990]">Amount</span><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-[#8c8990]">₹</span><input data-testid="input-entry-amount" type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" className="h-14 w-full rounded-xl border border-[#d1cdc2] bg-white px-4 pl-9 text-lg text-[#272638] outline-none focus:border-[#e6b935] focus:ring-2 focus:ring-[#e6b935]/20" /></div></label><div className="grid gap-4 sm:grid-cols-2"><label className="block"><span className="mono-label mb-2 block text-[10px] text-[#8c8990]">Date &amp; time</span><input data-testid="input-entry-date" type="datetime-local" value={occurredAt} onChange={(event) => setOccurredAt(event.target.value)} className="h-12 w-full rounded-xl border border-[#d1cdc2] bg-white px-4 text-sm text-[#272638] outline-none focus:border-[#e6b935]" /></label><label className="block"><span className="mono-label mb-2 block text-[10px] text-[#8c8990]">From</span><select data-testid="select-entry-category" value={category} onChange={(event) => setCategory(event.target.value as SavingsCategory)} className="h-12 w-full rounded-xl border border-[#d1cdc2] bg-white px-4 text-sm text-[#272638] outline-none focus:border-[#e6b935]">{Object.entries(categoryLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div><label className="block"><span className="mono-label mb-2 block text-[10px] text-[#8c8990]">A note for us</span><input data-testid="input-entry-summary" value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={240} placeholder="e.g. May salary set aside" className="h-14 w-full rounded-xl border border-[#d1cdc2] bg-white px-4 text-sm text-[#272638] outline-none focus:border-[#e6b935] focus:ring-2 focus:ring-[#e6b935]/20" /></label>{error && <p className="rounded-xl bg-[#f8e9eb] px-4 py-3 text-sm text-[#8e4c5c]" role="alert" data-testid="status-add-entry-error">Could not save this. Please try again.</p>}<button type="submit" disabled={!canSubmit || isPending} className="mt-3 flex h-14 w-full items-center justify-between rounded-xl bg-[#272638] px-5 font-semibold text-[#f4f0e5] transition hover:bg-[#343347] focus:outline-none focus:ring-2 focus:ring-[#e6b935] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-submit-entry"><span>{isPending ? 'Saving this moment...' : isEditing ? 'Save the changes' : 'Save this little win'}</span>{isPending ? <RefreshCw size={17} className="animate-spin" /> : <Heart size={17} />}</button></form></div></div>;
+}
+
+function ConfirmDeleteDialog({
+  entry,
+  isPending,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  entry: SavingsEntry;
+  isPending: boolean;
+  error: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#272638]/40 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="delete-entry-title" data-testid="dialog-delete-entry">
+      <div className="animate-soft-pop w-full max-w-sm rounded-t-[2rem] bg-[#f8f5ed] p-6 shadow-2xl sm:rounded-[2rem] sm:p-8">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#f8e9eb] text-[#8e4c5c]">
+          <Trash2 size={20} />
+        </div>
+        <h2 id="delete-entry-title" className="serif-display mt-5 text-center text-3xl text-[#272638]">Remove this entry?</h2>
+        <p className="mt-3 text-center text-sm leading-6 text-[#686675]">
+          &ldquo;{entry.summary}&rdquo; for {money(entry.amount)} will be gone for good — it won&apos;t count toward your total anymore.
+        </p>
+        {error && <p className="mt-4 rounded-xl bg-[#f8e9eb] px-4 py-3 text-center text-sm text-[#8e4c5c]" role="alert" data-testid="status-delete-entry-error">Could not delete this. Please try again.</p>}
+        <div className="mt-6 flex gap-3">
+          <button onClick={onCancel} className="h-12 flex-1 rounded-xl border border-[#d1cdc2] text-sm font-semibold text-[#272638] transition hover:bg-[#eee9dc]" data-testid="button-cancel-delete">
+            Keep it
+          </button>
+          <button onClick={onConfirm} disabled={isPending} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#8e4c5c] text-sm font-semibold text-[#f8f5ed] transition hover:bg-[#75303f] disabled:cursor-not-allowed disabled:opacity-60" data-testid="button-confirm-delete">
+            {isPending ? <RefreshCw size={16} className="animate-spin" /> : <Trash2 size={16} />}
+            {isPending ? 'Removing...' : 'Remove it'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function toDateTimeInputValue(date: Date) {
