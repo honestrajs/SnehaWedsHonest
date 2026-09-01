@@ -61,9 +61,7 @@ export const GetSavingsSummaryResponse = zod.object({
   "percentage": zod.number(),
   "remaining": zod.number(),
   "daysUntilWedding": zod.number(),
-  "monthlyNeeded": zod.number(),
-  "groomTotal": zod.number(),
-  "brideTotal": zod.number()
+  "monthlyNeeded": zod.number()
 })
 
 
@@ -109,5 +107,71 @@ export const CreateSavingsEntryResponse = zod.object({
   "addedByName": zod.string(),
   "createdAt": zod.coerce.date()
 })
+
+
+/**
+ * @summary Get the couple's shared photo
+ */
+export const GetWeddingPhotoResponse = zod.object({
+  "objectPath": zod.string().nullable(),
+  "url": zod.string().nullable()
+})
+
+
+/**
+ * @summary Save the couple's shared photo
+ */
+export const updateWeddingPhotoBodyObjectPathMax = 500;
+
+
+
+export const UpdateWeddingPhotoBody = zod.object({
+  "objectPath": zod.string().min(1).max(updateWeddingPhotoBodyObjectPathMax)
+})
+
+export const UpdateWeddingPhotoResponse = zod.object({
+  "objectPath": zod.string().nullable(),
+  "url": zod.string().nullable()
+})
+
+
+/**
+ * @summary Request a private photo upload URL
+ */
+
+
+
+
+
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string().min(1),
+  "size": zod.number().min(1),
+  "contentType": zod.string().min(1)
+})
+
+
+
+
+
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string().min(1),
+  "size": zod.number().min(1),
+  "contentType": zod.string().min(1)
+})
+})
+
+
+/**
+ * @summary Serve a private uploaded object
+ */
+export const GetStorageObjectParams = zod.object({
+  "objectPath": zod.coerce.string()
+})
+
+export const GetStorageObjectResponse = zod.unknown()
 
 

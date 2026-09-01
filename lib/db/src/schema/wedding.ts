@@ -11,5 +11,11 @@ export const savingsEntriesTable = pgTable("savings_entries", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const weddingSettingsTable = pgTable("wedding_settings", {
+  id: integer("id").primaryKey(),
+  photoPath: text("photo_path"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type SavingsEntry = typeof savingsEntriesTable.$inferSelect;
 export type InsertSavingsEntry = typeof savingsEntriesTable.$inferInsert;

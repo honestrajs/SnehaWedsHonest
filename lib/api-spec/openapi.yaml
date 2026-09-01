@@ -14,6 +14,8 @@ tags:
     description: Shared couple login
   - name: savings
     description: Wedding fund tracking
+  - name: Storage
+    description: Private photo upload and serving
 paths:
   /healthz:
     get:
@@ -145,6 +147,114 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /savings/photo:
+    get:
+      operationId: getWeddingPhoto
+      tags: [savings]
+      summary: Get the couple's shared photo
+      responses:
+        "200":
+          description: Current shared photo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeddingPhoto"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateWeddingPhoto
+      tags: [savings]
+      summary: Save the couple's shared photo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeddingPhotoInput"
+      responses:
+        "200":
+          description: Updated shared photo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeddingPhoto"
+        "400":
+          description: Invalid photo path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [Storage]
+      summary: Request a private photo upload URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Presigned upload URL generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          description: Invalid upload metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /storage/objects/{objectPath}:
+    get:
+      operationId: getStorageObject
+      tags: [Storage]
+      summary: Serve a private uploaded object
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Uploaded object
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -237,9 +347,44 @@ components:
           type: number
         monthlyNeeded:
           type: number
-        groomTotal:
+      required: [target, totalSaved, percentage, remaining, daysUntilWedding, monthlyNeeded]
+    WeddingPhoto:
+      type: object
+      properties:
+        objectPath:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+      required: [objectPath, url]
+    WeddingPhotoInput:
+      type: object
+      properties:
+        objectPath:
+          type: string
+          minLength: 1
+          maxLength: 500
+      required: [objectPath]
+    UploadUrlRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        size:
           type: number
-        brideTotal:
-          type: number
-      required: [target, totalSaved, percentage, remaining, daysUntilWedding, monthlyNeeded, groomTotal, brideTotal]
+          minimum: 1
+        contentType:
+          type: string
+          minLength: 1
+      required: [name, size, contentType]
+    UploadUrlResponse:
+      type: object
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+        metadata:
+          $ref: "#/components/schemas/UploadUrlRequest"
+      required: [uploadURL, objectPath, metadata]
 

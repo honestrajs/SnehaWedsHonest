@@ -13,6 +13,4 @@ export interface SavingsSummary {
   remaining: number;
   daysUntilWedding: number;
   monthlyNeeded: number;
-  groomTotal: number;
-  brideTotal: number;
 }

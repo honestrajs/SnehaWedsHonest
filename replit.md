@@ -25,13 +25,16 @@ A private shared savings tracker for Sneha and Honest to build their INR wedding
  - `artifacts/wedding-savings/src/App.tsx` — login, dashboard, contribution form, and responsive UI
  - `artifacts/wedding-savings/src/index.css` — wedding fund theme, typography, texture, and motion
  - `artifacts/api-server/src/routes/wedding.ts` — session login and savings API
+  - `artifacts/api-server/src/routes/storage.ts` — protected photo upload and serving
  - `lib/db/src/schema/wedding.ts` — shared contribution table
  - `lib/api-spec/openapi.yaml` — source of truth for the API contract
 
 ## Architecture decisions
 
 - Shared contributions are persisted in PostgreSQL so both couple logins see the same ledger.
+- Contributions are deliberately presented as “Both of us” rather than attributed to one partner.
 - The two requested couple credentials are handled by a small session-based private login.
+- The shared photo is stored in App Storage, with its object path kept in PostgreSQL.
 - Money is stored as integer paise/cents in the database to avoid floating-point total errors.
 - The target and wedding date are constants for this wedding plan; dashboard calculations are derived server-side.
 
@@ -39,12 +42,12 @@ A private shared savings tracker for Sneha and Honest to build their INR wedding
 
 - Bride and groom can sign in separately using the requested names and password.
 - Each person can save an amount, date and time, category, and a personal summary.
-- The dashboard shows total saved, percentage progress toward INR 10,00,000, remaining amount, monthly pace, contribution split, countdown, and recent entries.
+- The dashboard shows total saved, percentage progress toward INR 10,00,000, remaining amount, monthly pace, countdown, shared recent entries, and a brush-painted photo memory.
 
 ## User preferences
 
 - The user asked for a romantic Christian wedding theme for Sneha Christy C and Honest Raj S.
-- Wedding date is July 14, 2026; target budget is INR 10,00,000.
+- Wedding date is July 14, 2027; target budget is INR 10,00,000.
 
 ## Gotchas
 

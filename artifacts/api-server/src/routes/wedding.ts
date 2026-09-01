@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { CreateSavingsEntryBody, LoginBody } from "@workspace/api-zod";
-import { db, savingsEntriesTable } from "@workspace/db";
+import { db, savingsEntriesTable, weddingSettingsTable } from "@workspace/db";
 import { randomBytes } from "node:crypto";
 
 type Member = {
@@ -23,9 +23,9 @@ const members: Record<string, { password: string; member: Member }> = {
 
 const sessions = new Map<string, Member>();
 const TARGET_CENTS = 100000000;
-const WEDDING_DATE = new Date("2026-07-14T00:00:00.000Z");
+const WEDDING_DATE = new Date("2027-07-14T00:00:00.000Z");
 
-function getMember(req: Request): Member | null {
+export function getMember(req: Request): Member | null {
   const token = req.cookies?.wedding_session as string | undefined;
   return token ? sessions.get(token) ?? null : null;
 }
@@ -37,8 +37,8 @@ function toEntryResponse(entry: typeof savingsEntriesTable.$inferSelect) {
     occurredAt: entry.occurredAt,
     summary: entry.summary,
     category: entry.category,
-    addedBy: entry.addedBy,
-    addedByName: entry.addedByName,
+    addedBy: "Both",
+    addedByName: "Both of us",
     createdAt: entry.createdAt,
   };
 }
@@ -121,8 +121,8 @@ router.post("/savings/entries", async (req, res) => {
       occurredAt: parsed.data.occurredAt,
       summary: parsed.data.summary.trim(),
       category: parsed.data.category,
-      addedBy: member.username,
-      addedByName: member.name,
+      addedBy: "Both",
+      addedByName: "Both of us",
     })
     .returning();
   res.status(201).json(toEntryResponse(entry));
@@ -132,13 +132,7 @@ router.get("/savings/summary", async (req, res) => {
   if (!requireMember(req, res)) return;
 
   const entries = await db.select().from(savingsEntriesTable);
-  const groomTotalCents = entries
-    .filter((entry) => entry.addedBy === "Honest")
-    .reduce((total, entry) => total + entry.amountCents, 0);
-  const brideTotalCents = entries
-    .filter((entry) => entry.addedBy === "Sneha")
-    .reduce((total, entry) => total + entry.amountCents, 0);
-  const totalSavedCents = groomTotalCents + brideTotalCents;
+  const totalSavedCents = entries.reduce((total, entry) => total + entry.amountCents, 0);
   const remainingCents = Math.max(TARGET_CENTS - totalSavedCents, 0);
   const percentage = Math.min((totalSavedCents / TARGET_CENTS) * 100, 100);
   const daysUntilWedding = Math.max(
@@ -154,9 +148,39 @@ router.get("/savings/summary", async (req, res) => {
     remaining: remainingCents / 100,
     daysUntilWedding,
     monthlyNeeded: monthsRemaining ? remainingCents / 100 / monthsRemaining : 0,
-    groomTotal: groomTotalCents / 100,
-    brideTotal: brideTotalCents / 100,
   });
+});
+
+router.get("/savings/photo", async (req, res) => {
+  if (!requireMember(req, res)) return;
+  const [settings] = await db
+    .select()
+    .from(weddingSettingsTable)
+    .where(eq(weddingSettingsTable.id, 1));
+  const objectPath = settings?.photoPath ?? null;
+  res.json({
+    objectPath,
+    url: objectPath ? `/api/storage${objectPath}` : null,
+  });
+});
+
+router.put("/savings/photo", async (req, res) => {
+  if (!requireMember(req, res)) return;
+  const objectPath = typeof req.body?.objectPath === "string" ? req.body.objectPath.trim() : "";
+  if (!objectPath.startsWith("/objects/") || objectPath.length > 500) {
+    res.status(400).json({ error: "That photo could not be saved." });
+    return;
+  }
+
+  const [settings] = await db
+    .insert(weddingSettingsTable)
+    .values({ id: 1, photoPath: objectPath })
+    .onConflictDoUpdate({
+      target: weddingSettingsTable.id,
+      set: { photoPath: objectPath, updatedAt: new Date() },
+    })
+    .returning();
+  res.json({ objectPath: settings.photoPath, url: `/api/storage${settings.photoPath}` });
 });
 
 export default router;

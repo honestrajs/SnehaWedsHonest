@@ -16,3 +16,7 @@ export * from './savingsEntryCategory';
 export * from './savingsEntryInput';
 export * from './savingsEntryInputCategory';
 export * from './savingsSummary';
+export * from './uploadUrlRequest';
+export * from './uploadUrlResponse';
+export * from './weddingPhoto';
+export * from './weddingPhotoInput';

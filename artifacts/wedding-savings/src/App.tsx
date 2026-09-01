@@ -8,6 +8,7 @@ import {
   CircleDollarSign,
   Clock3,
   Gift,
+  ImagePlus,
   Heart,
   LogOut,
   Menu,
@@ -23,18 +24,23 @@ import {
 import {
   getGetCurrentMemberQueryKey,
   getGetSavingsSummaryQueryKey,
+  getGetWeddingPhotoQueryKey,
   getListSavingsEntriesQueryKey,
   SavingsEntryCategory,
   type Member,
   type SavingsEntry,
   type SavingsEntryInput,
   type SavingsSummary,
+  type WeddingPhoto,
   useCreateSavingsEntry,
   useGetCurrentMember,
   useGetSavingsSummary,
+  useGetWeddingPhoto,
   useListSavingsEntries,
   useLogin,
   useLogout,
+  useRequestUploadUrl,
+  useUpdateWeddingPhoto,
 } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -44,8 +50,6 @@ import { Route, Router as WouterRouter, Switch } from 'wouter';
 import './index.css';
 
 const queryClient = new QueryClient();
-const weddingDate = new Date('2026-07-14T00:00:00');
-
 const categoryLabels: Record<string, string> = {
   salary: 'Salary',
   gift: 'Gift',
@@ -147,12 +151,12 @@ function LoginScreen({ error }: { error?: string }) {
               <span className="italic text-[#ad6878]">One dream.</span>
             </h1>
             <p className="mt-9 max-w-sm text-base leading-7 text-[#686675]">
-              A quiet corner for the little deposits that become a beautiful beginning. Your July 14, 2026 is getting closer.
+              A quiet corner for the little deposits that become a beautiful beginning. Your July 14, 2027 is getting closer.
             </p>
             <div className="mt-12 flex items-center gap-5 text-sm text-[#686675]">
               <span className="flex items-center gap-2">
                 <CalendarDays size={16} className="text-[#ad6878]" />
-                14 July 2026
+                14 July 2027
               </span>
               <span className="h-1 w-1 rounded-full bg-[#e6b935]" />
               <span>Just yours</span>
@@ -248,8 +252,15 @@ function Dashboard({ member }: { member: Member }) {
   const entriesQuery = useListSavingsEntries({
     query: { enabled: true, queryKey: getListSavingsEntriesQueryKey() },
   });
+  const photoQuery = useGetWeddingPhoto({
+    query: { enabled: true, queryKey: getGetWeddingPhotoQueryKey() },
+  });
   const logout = useLogout();
   const createEntry = useCreateSavingsEntry();
+  const requestUploadUrl = useRequestUploadUrl();
+  const updateWeddingPhoto = useUpdateWeddingPhoto();
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState('');
 
   const handleLogout = () => {
     logout.mutate(undefined, {
@@ -274,6 +285,41 @@ function Dashboard({ member }: { member: Member }) {
         },
       },
     );
+  };
+
+  const uploadPhoto = async (file: File) => {
+    setPhotoError('');
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Please choose a photo file.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setPhotoError('Please choose a photo smaller than 10 MB.');
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      const upload = await requestUploadUrl.mutateAsync({
+        data: {
+          name: file.name,
+          size: file.size,
+          contentType: file.type,
+        },
+      });
+      const response = await fetch(upload.uploadURL, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+      if (!response.ok) throw new Error('Photo upload failed');
+      await updateWeddingPhoto.mutateAsync({ data: { objectPath: upload.objectPath } });
+      await queryClient.invalidateQueries({ queryKey: getGetWeddingPhotoQueryKey() });
+    } catch {
+      setPhotoError('We could not save that photo just now. Please try again.');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
   const summary = summaryQuery.data;
@@ -338,7 +384,7 @@ function Dashboard({ member }: { member: Member }) {
         <div className="mx-auto max-w-[1280px] px-5 pb-12 sm:px-9">
           <section className="animate-rise-in mb-7 grid gap-5 xl:grid-cols-[1.4fr_.85fr]">
             <FundHero summary={summary} isLoading={summaryQuery.isLoading} isError={summaryQuery.isError} onRetry={() => summaryQuery.refetch()} member={member} />
-            <TogetherCard summary={summary} />
+            <PhotoMemory photo={photoQuery.data} isLoading={photoQuery.isLoading} isUploading={isUploadingPhoto} error={photoError} onUpload={uploadPhoto} />
           </section>
           <section className="mb-10 grid gap-4 sm:grid-cols-3" data-testid="summary-cards">
             <SummaryCard label="We have saved" value={money(summary?.totalSaved)} detail={summary ? `${summary.percentage.toFixed(1)}% of our target` : 'Loading your total'} icon={<WalletCards size={18} />} tone="yellow" />
@@ -392,28 +438,48 @@ function FundHero({ summary, isLoading, isError, onRetry, member }: { summary?: 
   );
 }
 
-function TogetherCard({ summary }: { summary?: SavingsSummary }) {
-  const total = (summary?.brideTotal ?? 0) + (summary?.groomTotal ?? 0);
-  const bridePercent = total ? ((summary?.brideTotal ?? 0) / total) * 100 : 50;
+function PhotoMemory({ photo, isLoading, isUploading, error, onUpload }: { photo?: WeddingPhoto; isLoading: boolean; isUploading: boolean; error: string; onUpload: (file: File) => void }) {
   return (
-    <div className="relative overflow-hidden rounded-[2rem] border border-border bg-card p-7 shadow-sm sm:p-8" data-testid="card-together">
-      <div className="absolute right-0 top-0 h-32 w-32 rounded-bl-full bg-secondary/50" />
-      <div className="relative">
-        <div className="flex items-center justify-between"><p className="mono-label text-[10px] text-muted-foreground">Two hands, one plan</p><Heart size={18} className="text-[#ad6878]" /></div>
-        <h2 className="serif-display mt-6 text-4xl leading-none">Made by<br /><span className="italic text-[#ad6878]">both of us.</span></h2>
-        <div className="mt-10 space-y-5">
-          <PersonContribution name="Sneha" amount={summary?.brideTotal} color="bg-[#cf8394]" />
-          <PersonContribution name="Honest" amount={summary?.groomTotal} color="bg-[#e6b935]" />
-          <div className="relative mt-7 h-3 overflow-hidden rounded-full bg-muted"><div className="absolute inset-y-0 left-0 bg-[#cf8394]" style={{ width: `${bridePercent}%` }} /><div className="absolute inset-y-0 right-0 bg-[#e6b935]" style={{ width: `${100 - bridePercent}%` }} /></div>
-          <div className="flex justify-between text-xs text-muted-foreground"><span>Sneha&apos;s share</span><span>Honest&apos;s share</span></div>
+    <div className="photo-memory-card relative overflow-hidden rounded-[2rem] bg-[#f5e5dc] p-7 text-[#382d3c] shadow-sm sm:p-8" data-testid="card-photo-memory">
+      <div className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-[#cf8394]/20 blur-2xl" />
+      <div className="relative flex h-full flex-col">
+        <div className="flex items-center justify-between">
+          <p className="mono-label text-[10px] text-[#8d6570]">A little piece of us</p>
+          <Heart size={18} className="text-[#ad6878]" fill="currentColor" />
         </div>
+        <h2 className="serif-display mt-6 text-4xl leading-none">Our story,<br /><span className="italic text-[#ad6878]">in one frame.</span></h2>
+        <div className="mt-7 flex flex-1 items-center justify-center">
+          {isLoading ? (
+            <div className="h-44 w-full animate-pulse rounded-[30%_70%_65%_35%/40%_35%_65%_60%] bg-[#ead1c9]" data-testid="state-photo-loading" />
+          ) : photo?.url ? (
+            <label className="group relative block w-full cursor-pointer" data-testid="photo-preview">
+              <div className="brush-photo-scene mx-auto">
+                <img src={photo.url} alt="Sneha and Honest" className="brush-photo-image" />
+                <span className="brush-stroke brush-stroke-one" />
+                <span className="brush-stroke brush-stroke-two" />
+              </div>
+              <span className="photo-change-hint"><ImagePlus size={14} /> Change our photo</span>
+              <input className="sr-only" type="file" accept="image/*" onChange={(event) => event.target.files?.[0] && onUpload(event.target.files[0])} disabled={isUploading} />
+            </label>
+          ) : (
+            <label className="brush-photo-empty group" data-testid="photo-upload-empty">
+              <span className="brush-empty-stroke brush-empty-stroke-one" />
+              <span className="brush-empty-stroke brush-empty-stroke-two" />
+              <span className="relative z-10 flex flex-col items-center justify-center px-8 text-center">
+                <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#efd0d1] text-[#8e4c5c] transition group-hover:scale-105"><ImagePlus size={21} /></span>
+                <span className="serif-display text-2xl">Add a photo of us</span>
+                <span className="mt-1 text-xs text-[#8d6570]">Let this space hold a little joy.</span>
+              </span>
+              <input className="sr-only" type="file" accept="image/*" onChange={(event) => event.target.files?.[0] && onUpload(event.target.files[0])} disabled={isUploading} />
+            </label>
+          )}
+        </div>
+        {isUploading && <p className="mono-label mt-4 text-center text-[10px] text-[#8e4c5c]" role="status" data-testid="status-photo-uploading">Saving our photo...</p>}
+        {error && <p className="mt-4 rounded-xl bg-[#f8e9eb] px-4 py-3 text-sm text-[#8e4c5c]" role="alert" data-testid="status-photo-error">{error}</p>}
+        <p className="mt-6 text-sm leading-6 text-[#6f5d66]">Every little step is sweeter when it is ours. This is the place for the photo that makes you both smile.</p>
       </div>
     </div>
   );
-}
-
-function PersonContribution({ name, amount, color }: { name: string; amount?: number; color: string }) {
-  return <div className="flex items-center gap-3"><span className={`h-3 w-3 rounded-full ${color}`} /><span className="flex-1 text-sm text-muted-foreground">{name}</span><span className="font-semibold" data-testid={`text-${name.toLowerCase()}-total`}>{money(amount)}</span></div>;
 }
 
 function SummaryCard({ label, value, detail, icon, tone }: { label: string; value: string; detail: string; icon: React.ReactNode; tone: 'yellow' | 'rose' | 'teal' }) {
@@ -436,7 +502,7 @@ function EmptyEntries() {
 
 function EntryRow({ entry, index }: { entry: SavingsEntry; index: number }) {
   const Icon = categoryIcons[entry.category] ?? CircleDollarSign;
-  return <div className="animate-rise-in group flex items-center gap-3 rounded-2xl px-2 py-3 transition hover:bg-muted/60" style={{ animationDelay: `${index * 70}ms` }} data-testid={`row-savings-entry-${entry.id}`}><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-[#8e4c5c]"><Icon size={18} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold">{entry.summary}</p><span className="hidden rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground sm:inline">{categoryLabels[entry.category]}</span></div><p className="mt-1 text-xs text-muted-foreground">{shortDate(entry.occurredAt)} · added by {entry.addedByName}</p></div><p className="font-semibold text-[#34695f]" data-testid={`text-entry-amount-${entry.id}`}>+{money(entry.amount)}</p><ChevronRight size={15} className="text-border transition group-hover:translate-x-0.5 group-hover:text-foreground" /></div>;
+  return <div className="animate-rise-in group flex items-center gap-3 rounded-2xl px-2 py-3 transition hover:bg-muted/60" style={{ animationDelay: `${index * 70}ms` }} data-testid={`row-savings-entry-${entry.id}`}><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-[#8e4c5c]"><Icon size={18} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold">{entry.summary}</p><span className="hidden rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground sm:inline">{categoryLabels[entry.category]}</span></div><p className="mt-1 text-xs text-muted-foreground">{shortDate(entry.occurredAt)} · shared by both of us</p></div><p className="font-semibold text-[#34695f]" data-testid={`text-entry-amount-${entry.id}`}>+{money(entry.amount)}</p><ChevronRight size={15} className="text-border transition group-hover:translate-x-0.5 group-hover:text-foreground" /></div>;
 }
 
 function SideNote({ summary }: { summary?: SavingsSummary }) {

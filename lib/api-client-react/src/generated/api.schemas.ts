@@ -84,7 +84,35 @@ export interface SavingsSummary {
   remaining: number;
   daysUntilWedding: number;
   monthlyNeeded: number;
-  groomTotal: number;
-  brideTotal: number;
+}
+
+export interface WeddingPhoto {
+  /** @nullable */
+  objectPath: string | null;
+  /** @nullable */
+  url: string | null;
+}
+
+export interface WeddingPhotoInput {
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  objectPath: string;
+}
+
+export interface UploadUrlRequest {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  /** @minLength 1 */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata: UploadUrlRequest;
 }
 
