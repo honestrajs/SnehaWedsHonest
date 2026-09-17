@@ -39,7 +39,7 @@ export const MILESTONES: Milestone[] = [
     id: 'kai-nenaikura',
     sortDate: '2027-04-20',
     dateLabel: 'Mar – May 2027',
-    tamilName: 'Kai Nenaikura moment 🤝',
+    tamilName: 'Kai Nenaikura moment ❤️',
     title: 'Lunch at the groom’s house',
     description: "Sneha's family visits Honest's home for a shared meal.",
     tag: "Bride's side",
