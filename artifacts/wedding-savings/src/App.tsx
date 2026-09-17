@@ -755,6 +755,7 @@ function BackgroundMusic() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    audio.volume = 0.4;
     // Browsers block autoplay-with-sound until the visitor has manually played
     // audio on this site before — if that hasn't happened yet, this silently
     // fails and the button below is the fallback.
