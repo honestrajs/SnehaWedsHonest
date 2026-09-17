@@ -12,6 +12,7 @@ export type Milestone = {
   dateLabel: string; // what's actually shown
   title: string;
   tamilName?: string;
+  tamilNameEmoji?: string;
   description: string;
   tag: string;
 };
@@ -21,7 +22,8 @@ export const MILESTONES: Milestone[] = [
     id: 'ponnu-paakura',
     sortDate: '2027-02-07',
     dateLabel: '07 Feb 2027',
-    tamilName: 'Ponnu Paakura moment 👀',
+    tamilName: 'Ponnu Paakura moment',
+    tamilNameEmoji: '👀',
     title: 'Meeting her family',
     description: "Honest's first visit to Sneha's home.",
     tag: "Groom's side",
@@ -30,7 +32,8 @@ export const MILESTONES: Milestone[] = [
     id: 'poo-vekkura',
     sortDate: '2027-03-20',
     dateLabel: 'Mar – May 2027',
-    tamilName: 'Poo Vekkura moment 🌸',
+    tamilName: 'Poo Vekkura moment',
+    tamilNameEmoji: '🌸',
     title: "Honest's family visits with their blessing",
     description: "Honest's entire family comes to Sneha's home.",
     tag: "Groom's side",
@@ -39,7 +42,8 @@ export const MILESTONES: Milestone[] = [
     id: 'kai-nenaikura',
     sortDate: '2027-04-20',
     dateLabel: 'Mar – May 2027',
-    tamilName: 'Kai Nenaikura moment ❤️',
+    tamilName: 'Kai Nenaikura moment',
+    tamilNameEmoji: '❤️',
     title: 'Lunch at the groom’s house',
     description: "Sneha's family visits Honest's home for a shared meal.",
     tag: "Bride's side",

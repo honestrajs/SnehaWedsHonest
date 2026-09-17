@@ -557,7 +557,11 @@ function RoadmapCard() {
                 </div>
                 <h3 className="mt-1.5 text-base font-semibold text-foreground">
                   {milestone.title}
-                  {milestone.tamilName && <span className="ml-2 text-sm font-normal italic text-[#ad6878]">({milestone.tamilName})</span>}
+                  {milestone.tamilName && (
+                    <span className="ml-2 text-sm font-normal text-[#ad6878]">
+                      (<span className="italic">{milestone.tamilName}</span>{milestone.tamilNameEmoji && <span className="not-italic"> {milestone.tamilNameEmoji}</span>})
+                    </span>
+                  )}
                 </h3>
                 <p className="mt-1 text-sm text-muted-foreground">{milestone.description}</p>
               </div>
