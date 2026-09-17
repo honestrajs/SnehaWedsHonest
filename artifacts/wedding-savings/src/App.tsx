@@ -394,6 +394,7 @@ function Dashboard({ member, onLogout }: { member: Member; onLogout: () => void 
         />
       )}
       {flashMessage && <div className="animate-soft-pop fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full bg-[#272638] px-5 py-3 text-sm text-[#f4f0e5] shadow-xl" role="status" data-testid="status-save-success"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#e6b935] text-[#272638]"><Check size={14} strokeWidth={3} /></span>{flashMessage}</div>}
+      <BackgroundMusic />
     </div>
   );
 }
@@ -751,6 +752,18 @@ function BackgroundMusic() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    // Browsers block autoplay-with-sound until the visitor has manually played
+    // audio on this site before — if that hasn't happened yet, this silently
+    // fails and the button below is the fallback.
+    audio.play().then(
+      () => setIsPlaying(true),
+      () => setIsPlaying(false),
+    );
+  }, []);
+
   const toggle = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -788,7 +801,6 @@ function App() {
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <Router />
         </WouterRouter>
-        <BackgroundMusic />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
