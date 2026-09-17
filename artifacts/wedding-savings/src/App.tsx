@@ -6,10 +6,13 @@ import {
   Check,
   CircleDollarSign,
   Clock3,
+  Flower2,
+  Gem,
   Gift,
   Heart,
   LogOut,
   Menu,
+  PartyPopper,
   Pencil,
   Plus,
   RefreshCw,
@@ -18,6 +21,8 @@ import {
   Trash2,
   TrendingUp,
   UserRound,
+  Users,
+  UtensilsCrossed,
   WalletCards,
   X,
 } from 'lucide-react';
@@ -25,13 +30,16 @@ import {
   getStoredMember,
   login as loginRequest,
   logout as logoutRequest,
+  MILESTONES,
   SAVINGS_CATEGORIES,
   summarize,
   useCreateSavingsEntry,
   useDeleteSavingsEntry,
   useSavingsEntries,
   useUpdateSavingsEntry,
+  WEDDING_DATE_MS,
   type Member,
+  type Milestone,
   type SavingsCategory,
   type SavingsEntry,
   type SavingsEntryInput,
@@ -46,7 +54,6 @@ import ourStoryImage from './assets/our-story.png';
 import './index.css';
 
 const queryClient = new QueryClient();
-const WEDDING_DATE_MS = new Date('2027-07-14T00:00:00.000Z').getTime();
 const categoryLabels: Record<string, string> = {
   salary: 'Salary',
   gift: 'Gift',
@@ -147,12 +154,12 @@ function LoginScreen({ onLogin }: { onLogin: (member: Member) => void }) {
               <span className="italic text-[#ad6878]">One dream.</span>
             </h1>
             <p className="mt-9 max-w-sm text-base leading-7 text-[#686675]">
-              A quiet corner for the little deposits that become a beautiful beginning. Your July 14, 2027 is getting closer.
+              A quiet corner for the little deposits that become a beautiful beginning. Your 11.11.2027 is getting closer.
             </p>
             <div className="mt-12 flex items-center gap-5 text-sm text-[#686675]">
               <span className="flex items-center gap-2">
                 <CalendarDays size={16} className="text-[#ad6878]" />
-                14 July 2027
+                11 November 2027
               </span>
               <span className="h-1 w-1 rounded-full bg-[#e6b935]" />
               <span>Just yours</span>
@@ -316,7 +323,7 @@ function Dashboard({ member, onLogout }: { member: Member; onLogout: () => void 
               <span className="mono-label text-[9px] text-[#aaa8b2]">The big day</span>
               <CalendarDays size={15} className="text-sidebar-primary" />
             </div>
-            <p className="serif-display text-3xl">14.07.27</p>
+            <p className="serif-display text-3xl">11.11.27</p>
              <p className="mt-1 text-xs text-[#aaa8b2]">{summary ? (summary.daysUntilWedding > 0 ? `${summary.daysUntilWedding} days to go` : 'The day has arrived') : '—'}</p>
           </div>
           <div className="flex items-center gap-3 border-t border-sidebar-border pt-5">
@@ -356,6 +363,9 @@ function Dashboard({ member, onLogout }: { member: Member; onLogout: () => void 
             <SummaryCard label="We have saved" value={money(summary?.totalSaved)} detail={summary ? `${summary.percentage.toFixed(1)}% of our target` : 'Loading your total'} icon={<WalletCards size={18} />} tone="yellow" />
             <SummaryCard label="Still to go" value={money(summary?.remaining)} detail={summary ? `${money(summary.monthlyNeeded)} each month` : 'A little at a time'} icon={<TrendingUp size={18} />} tone="rose" />
             <SummaryCard label="Our target" value={money(summary?.target)} detail="The celebration we are building" icon={<Target size={18} />} tone="teal" />
+          </section>
+          <section className="mb-10">
+            <RoadmapCard />
           </section>
           <section className="grid gap-6 xl:grid-cols-[1.35fr_.65fr]">
             <EntriesCard entries={entries} isLoading={entriesQuery.isLoading} isError={entriesQuery.isError} onRetry={() => entriesQuery.refetch()} onEdit={setEditingEntry} onDelete={setDeletingEntry} />
@@ -495,6 +505,65 @@ function WeddingCountdown() {
             <p className="mono-label mt-1 text-[8px] text-[#e6b935]">{unit.label}</p>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+const milestoneIcons: Record<string, typeof Heart> = {
+  'ponnu-paakura': Users,
+  'poo-vekkura': Flower2,
+  'kai-nenaikura': UtensilsCrossed,
+  engagement: Gem,
+  wedding: Heart,
+  reception: PartyPopper,
+};
+
+function RoadmapCard() {
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const nextId = useMemo(() => MILESTONES.find((milestone) => milestone.sortDate >= today)?.id ?? null, [today]);
+
+  return (
+    <div className="rounded-[2rem] border border-border bg-card p-6 shadow-sm sm:p-8" data-testid="card-roadmap">
+      <div className="mb-8">
+        <p className="mono-label text-[10px] text-muted-foreground">Every step, before forever</p>
+        <h2 className="serif-display mt-2 text-4xl">The road to <span className="italic text-[#ad6878]">11:11</span></h2>
+      </div>
+      <div>
+        {MILESTONES.map((milestone, index) => {
+          const Icon = milestoneIcons[milestone.id] ?? Heart;
+          const isNext = milestone.id === nextId;
+          const isPast = milestone.sortDate < today;
+          const isLast = index === MILESTONES.length - 1;
+          return (
+            <div className="relative flex gap-4 pb-8 last:pb-0" data-testid={`milestone-${milestone.id}`} key={milestone.id}>
+              {!isLast && <span className="absolute left-[19px] top-10 h-[calc(100%-1rem)] w-px bg-border" aria-hidden="true" />}
+              <div
+                className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 ${
+                  isNext
+                    ? 'border-[#e6b935] bg-[#f8efc9] text-[#75601c]'
+                    : isPast
+                      ? 'border-[#a9d1c6] bg-[#dceee9] text-[#28534b]'
+                      : 'border-border bg-muted text-muted-foreground'
+                }`}
+              >
+                {isPast ? <Check size={16} /> : <Icon size={16} />}
+              </div>
+              <div className="min-w-0 flex-1 pt-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="mono-label text-[10px] text-muted-foreground">{milestone.dateLabel}</span>
+                  {isNext && <span className="rounded-full bg-[#f8efc9] px-2 py-0.5 text-[10px] font-semibold text-[#75601c]">Next up</span>}
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">{milestone.tag}</span>
+                </div>
+                <h3 className="mt-1.5 text-base font-semibold text-foreground">
+                  {milestone.title}
+                  {milestone.tamilName && <span className="ml-2 text-sm font-normal italic text-[#ad6878]">({milestone.tamilName})</span>}
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">{milestone.description}</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

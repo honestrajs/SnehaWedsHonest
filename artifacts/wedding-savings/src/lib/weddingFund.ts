@@ -2,7 +2,73 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
 
 export const TARGET = 1_000_000; // INR 10,00,000
-export const WEDDING_DATE_MS = new Date('2027-07-14T00:00:00.000Z').getTime();
+// The wedding day itself — 11.11.2027, "our 11:11". Ring day (engagement) is
+// an earlier milestone, see MILESTONES below.
+export const WEDDING_DATE_MS = new Date('2027-11-11T00:00:00.000Z').getTime();
+
+export type Milestone = {
+  id: string;
+  sortDate: string; // ISO date, used only for ordering — range events use a mid-point
+  dateLabel: string; // what's actually shown
+  title: string;
+  tamilName?: string;
+  description: string;
+  tag: string;
+};
+
+export const MILESTONES: Milestone[] = [
+  {
+    id: 'ponnu-paakura',
+    sortDate: '2027-02-07',
+    dateLabel: '07 Feb 2027',
+    tamilName: 'Ponnu Paakura',
+    title: 'Meeting her family',
+    description: "Honest's first visit to Sneha's home.",
+    tag: "Groom's side",
+  },
+  {
+    id: 'poo-vekkura',
+    sortDate: '2027-03-20',
+    dateLabel: 'Mar – May 2027',
+    tamilName: 'Poo Vekkura',
+    title: "Honest's family visits with their blessing",
+    description: "Honest's entire family comes to Sneha's home.",
+    tag: "Groom's side",
+  },
+  {
+    id: 'kai-nenaikura',
+    sortDate: '2027-04-20',
+    dateLabel: 'Mar – May 2027',
+    tamilName: 'Kai Nenaikura',
+    title: 'Lunch at the groom’s house',
+    description: "Sneha's family visits Honest's home for a shared meal.",
+    tag: "Bride's side",
+  },
+  {
+    id: 'engagement',
+    sortDate: '2027-07-14',
+    dateLabel: '14 Jul 2027',
+    title: 'Engagement — the ring',
+    description: 'We exchange rings and make it official.',
+    tag: 'Both families',
+  },
+  {
+    id: 'wedding',
+    sortDate: '2027-11-11',
+    dateLabel: '11 Nov 2027',
+    title: 'Wedding day — our 11:11',
+    description: 'The day we say "I do", forever.',
+    tag: 'The big day',
+  },
+  {
+    id: 'reception',
+    sortDate: '2027-11-12',
+    dateLabel: '12 Nov 2027',
+    title: 'Reception',
+    description: 'Celebrating with everyone we love.',
+    tag: 'Celebration',
+  },
+];
 
 export const SAVINGS_CATEGORIES = ['salary', 'gift', 'side-income', 'other'] as const;
 export type SavingsCategory = (typeof SAVINGS_CATEGORIES)[number];
