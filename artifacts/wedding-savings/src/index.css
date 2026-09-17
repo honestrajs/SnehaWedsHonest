@@ -446,8 +446,15 @@
 .animate-rise-in { animation: rise-in 600ms cubic-bezier(.2,.8,.2,1) both; }
 .animate-soft-pop { animation: soft-pop 400ms cubic-bezier(.2,.8,.2,1) both; }
 .progress-draw { transform-origin: left; animation: progress-draw 900ms cubic-bezier(.2,.8,.2,1) both; }
+
+@keyframes music-note-ring {
+  0% { box-shadow: 0 0 0 0 rgba(230, 185, 53, 0.55); }
+  100% { box-shadow: 0 0 0 12px rgba(230, 185, 53, 0); }
+}
+.music-note-playing { animation: music-note-ring 1.8s ease-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-rise-in, .animate-soft-pop, .progress-draw { animation: none; }
+  .animate-rise-in, .animate-soft-pop, .progress-draw, .music-note-playing { animation: none; }
 }
 
 /**

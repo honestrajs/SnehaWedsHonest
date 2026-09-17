@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   ArrowUpRight,
@@ -12,6 +12,7 @@ import {
   Heart,
   LogOut,
   Menu,
+  Music,
   PartyPopper,
   Pencil,
   Plus,
@@ -746,8 +747,52 @@ function Router() {
   return <ErrorBoundary><Switch><Route path="/" component={AuthGate} /><Route component={NotFound} /></Switch></ErrorBoundary>;
 }
 
+function BackgroundMusic() {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play().then(
+        () => setIsPlaying(true),
+        () => setIsPlaying(false),
+      );
+    }
+  };
+
+  return (
+    <>
+      <audio ref={audioRef} src="/our-song.mp3" loop preload="none" />
+      <button
+        onClick={toggle}
+        className={`fixed bottom-5 right-5 z-[70] flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition hover:scale-105 ${isPlaying ? 'music-note-playing bg-[#e6b935] text-[#272638]' : 'bg-[#272638] text-[#e6b935]'}`}
+        aria-label={isPlaying ? 'Pause our song' : 'Play our song'}
+        aria-pressed={isPlaying}
+        data-testid="button-toggle-music"
+      >
+        <Music size={19} />
+      </button>
+    </>
+  );
+}
+
 function App() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <Router />
+        </WouterRouter>
+        <BackgroundMusic />
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
 }
 
 export default App;
